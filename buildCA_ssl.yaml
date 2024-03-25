@@ -1,0 +1,70 @@
+---
+-  hosts: all
+   become: true
+   pre_tasks:
+
+   -  name: Install Updates (Ubuntu)
+      apt:
+        upgrade: dist
+        update_cache: yes
+      when: ansible_distribution == "Ubuntu"
+
+-  hosts: Control_Node
+   become: true
+   tasks:
+
+   -  name: Create the CA and NewCert directory in the /etc/ssl directory
+      file:
+        path: /etc/ssl/{{ item }}
+        state: directory
+      loop:
+        - CA
+        - newcerts
+
+   -  name: Create the serial file
+      copy:
+        content: "01"
+        dest: /etc/ssl/CA/serial
+        owner: root
+        mode: 0755
+
+   -  name: Create the index.txt file
+      copy:
+        content: ""
+        dest: /etc/ssl/CA/index.txt
+        owner: root
+        mode: 0755
+
+   -  name: Configure the OpenSSL file
+      template:
+        src: templates/openssl.cnf.j2
+        dest: /etc/ssl/openssl.cnf
+
+   -  name: Generating an OpenSSL Private Key
+      community.crypto.openssl_privatekey:
+        path: /etc/ssl/private/cakey.pem
+
+   -  name: Generating an OpenSSL Certificate Signing Request
+      community.crypto.openssl_csr:
+        path: /etc/ssl/certs/cacert.csr
+        privatekey_path: /etc/ssl/private/cakey.pem
+        common_name: CPE243_HA9.1
+
+   -  name: Generating an OpenSSL Self-Signed Certificate
+      community.crypto.x509_certificate:
+        path: /etc/ssl/CA.crt
+        csr_path: /etc/ssl/certs/cacert.csr
+        privatekey_path: /etc/ssl/private/cakey.pem
+        provider: selfsigned
+
+   -  name: Fetching the Certificate and the Keys
+      fetch:
+        src: /etc/ssl/{{ item }}
+        dest: /home/seruelas/CPE243_HA9.1/files
+      loop:
+        - CA/serial
+        - CA/index.txt
+        - private/cakey.pem
+        - certs/cacert.csr
+        - CA.crt
+
